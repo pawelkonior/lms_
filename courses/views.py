@@ -1,5 +1,8 @@
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
-from django.shortcuts import render
+from django.core.exceptions import ObjectDoesNotExist
+from django.shortcuts import render, redirect
 from django.urls import reverse_lazy, reverse
 from django.views.generic import ListView, DetailView, DeleteView, CreateView, UpdateView
 
@@ -50,3 +53,25 @@ class CourseUpdateView(LoginRequiredMixin, OwnerRequiredMixin, UpdateView):
     def get_success_url(self):
         pk = self.kwargs.get('pk')
         return reverse('courses:course-detail', kwargs={'pk': pk})
+
+
+@login_required
+def student_enrollment(request, course_slug):
+    if request.method == 'POST':
+        try:
+            course = models.Course.objects.get(slug=course_slug)
+            if course is not None:
+                students = course.students.all()
+                if request.user not in students:
+                    course.students.add(request.user)
+                    messages.add_message(request, messages.SUCCESS, 'You enrolled in this course 💩')
+                    return redirect(reverse_lazy('courses:courses-list'))
+                else:
+                    messages.add_message(request, messages.WARNING, 'You already enrolled in this course')
+                    return redirect(reverse_lazy('courses:courses-list'))
+            else:
+                messages.add_message(request, messages.WARNING, 'Course does not exist')
+                return redirect(reverse_lazy('courses:courses-list'))
+        except ObjectDoesNotExist:
+            messages.add_message(request, messages.ERROR, 'Course not found')
+            return redirect(reverse_lazy('courses:courses-list'))
